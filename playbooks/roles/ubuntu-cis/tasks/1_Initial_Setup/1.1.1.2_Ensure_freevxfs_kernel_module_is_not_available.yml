@@ -1,0 +1,153 @@
+---
+- name: "1.1.1.2 | L1 | Ensure freevxfs module is disabled"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем загружен ли модуль freevxfs
+    - name: "CHECK | Check if freevxfs module is currently loaded"
+      ansible.builtin.shell:
+        cmd: lsmod | grep -q freevxfs && echo "LOADED" || echo "NOT_LOADED"
+      register: module_loaded
+      changed_when: false
+      tags:
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.2
+
+    # ЗАДАЧА 2: Выгружаем модуль если он загружен
+    - name: "REMEDIATION | Unload freevxfs module if loaded"
+      ansible.builtin.shell:
+        cmd: modprobe -r freevxfs
+      when: module_loaded.stdout == "LOADED"
+      register: module_unload
+      ignore_errors: yes       # Игнорируем ошибки если модуль уже выгружен
+      tags:
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.2
+
+    # ЗАДАЧА 3: Проверяем существование и содержимое конфигурационного файла
+    - name: "CHECK | Check freevxfs config file content"
+      ansible.builtin.shell:
+        cmd: |
+          if [ -f /etc/modprobe.d/freevxfs.conf ]; then
+            if grep -q "install freevxfs /bin/true" /etc/modprobe.d/freevxfs.conf && \
+               grep -q "blacklist freevxfs" /etc/modprobe.d/freevxfs.conf; then
+              echo "CORRECT"
+            else
+              echo "INCORRECT"
+            fi
+          else
+            echo "MISSING"
+          fi
+      register: config_check
+      changed_when: false
+      tags:
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.2
+
+    # ЗАДАЧА 4: Создаем конфигурационный файл для блокировки модуля
+    - name: "REMEDIATION | Disable freevxfs module permanently"
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/freevxfs.conf
+        content: |
+          # CIS Ubuntu Benchmark 1.1.1.2
+          # Disable freevxfs module to reduce attack surface
+          install freevxfs /bin/true
+          blacklist freevxfs
+        owner: root
+        group: root
+        mode: 0644
+        backup: yes
+      when: config_check.stdout != "CORRECT"
+      tags:
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.2
+
+    # ЗАДАЧА 5: Обновляем initramfs если были изменения
+    - name: "REMEDIATION | Update initramfs if configuration changed"
+      ansible.builtin.shell:
+        # update-initramfs обновляет образ initramfs с учетом изменений в modprobe.d
+        cmd: update-initramfs -u
+      when: >
+        (module_unload is changed and module_unload is defined) or
+        (config_check is changed and config_check is defined)
+      tags:
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.2
+
+    # ЗАДАЧА 6: Проверяем финальный статус
+    - name: "VERIFY | Verify freevxfs module is disabled"
+      ansible.builtin.shell:
+        cmd: |
+          echo "Freevxfs Module Security Status"
+          echo "CIS Control: 1.1.1.2 - Ensure freevxfs module is disabled"
+          echo ""
+          
+          # Проверяем загружен ли модуль
+          module_loaded=$(lsmod | grep -c freevxfs)
+          if [ $module_loaded -eq 0 ]; then
+            echo "MODULE LOADED: NO - Module is not loaded in memory [PASS]"
+            loaded_status="PASS"
+          else
+            echo "MODULE LOADED: YES - Security risk! Module is loaded [FAIL]"
+            loaded_status="FAIL"
+          fi
+          
+          # Проверяем конфигурационный файл
+          echo ""
+          if [ -f /etc/modprobe.d/freevxfs.conf ]; then
+            echo "CONFIG FILE: /etc/modprobe.d/freevxfs.conf"
+            config_content=$(cat /etc/modprobe.d/freevxfs.conf)
+            echo "File contents:"
+            echo "$config_content"
+            echo ""
+            
+            if grep -q "install freevxfs /bin/true" /etc/modprobe.d/freevxfs.conf && \
+               grep -q "blacklist freevxfs" /etc/modprobe.d/freevxfs.conf; then
+              echo "CONFIGURATION: CORRECT - Module is permanently disabled [PASS]"
+              config_status="PASS"
+            else
+              echo "CONFIGURATION: INCORRECT - Missing disable directives [FAIL]"
+              config_status="FAIL"
+            fi
+          else
+            echo "CONFIG FILE: MISSING - No configuration to prevent module loading [FAIL]"
+            config_status="FAIL"
+          fi
+          
+          # Итоговый результат compliance
+          echo ""
+          echo "COMPLIANCE CHECK"
+          if [ "$loaded_status" = "PASS" ] && [ "$config_status" = "PASS" ]; then
+            echo "STATUS: COMPLIANT - freevxfs module is properly disabled"
+            echo "  - Module is not loaded in memory"
+            echo "  - Permanent disable configuration is in place"
+            exit 0   # Успешное завершение - соответствует требованиям
+          else
+            echo "STATUS: NON-COMPLIANT - freevxfs module is not properly disabled"
+            if [ "$loaded_status" = "FAIL" ]; then
+              echo "  - Module is currently loaded"
+            fi
+            if [ "$config_status" = "FAIL" ]; then
+              echo "  - Configuration file missing or incorrect"
+            fi
+            exit 1   # Ошибка - не соответствует требованиям
+          fi
+      register: verification_result
+      changed_when: false
+      failed_when: verification_result.rc != 0
+      tags:
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.2
