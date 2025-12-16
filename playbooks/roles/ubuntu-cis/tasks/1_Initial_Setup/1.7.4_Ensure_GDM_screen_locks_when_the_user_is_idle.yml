@@ -1,0 +1,110 @@
+---
+- name: "1.7.4 | L1 | Ensure GDM screen locks when user is idle"
+  hosts: ubuntu
+  become: yes  # Требуем права root для выполнения команд от имени пользователя gdm
+  vars:
+    idle_delay: 300  # Время бездействия до блокировки в секундах (5 минут)
+    lock_delay: 0    # Задержка блокировки после бездействия в секундах (немедленная)
+  tasks:
+
+    # ЗАДАЧА 1: Получение текущих настроек блокировки экрана GDM
+    - name: "Get current GDM settings"
+      ansible.builtin.shell: |
+        # Получаем текущее состояние блокировки экрана
+        lock_enabled=$(sudo -u gdm dbus-launch gsettings get org.gnome.desktop.screensaver lock-enabled 2>/dev/null || echo "false")
+        # Получаем текущее время бездействия до блокировки
+        idle_delay_current=$(sudo -u gdm dbus-launch gsettings get org.gnome.desktop.session idle-delay 2>/dev/null || echo "uint32 0")
+        # Получаем текущую задержку блокировки после бездействия
+        lock_delay_current=$(sudo -u gdm dbus-launch gsettings get org.gnome.desktop.screensaver lock-delay 2>/dev/null || echo "uint32 0")
+        
+        # Формируем вывод для последующего парсинга
+        echo "lock_enabled:$lock_enabled"
+        echo "idle_delay:$idle_delay_current" 
+        echo "lock_delay:$lock_delay_current"
+      register: gdm_settings  
+      changed_when: false     
+      failed_when: false 
+      tags: 
+        - all
+        - cis-ubuntu    
+        - section1      
+        - 1.7.4
+
+    # ЗАДАЧА 2: Парсинг полученных настроек GDM
+    - name: "Parse settings correctly"
+      ansible.builtin.set_fact:
+        # Определяем включена ли блокировка экрана (ищем 'true' в строке)
+        current_lock_enabled: "{{ 'true' in gdm_settings.stdout_lines[0] }}"
+        # Извлекаем числовое значение времени бездействия (последнее слово в строке после split)
+        current_idle_delay: "{{ (gdm_settings.stdout_lines[1].split() | last | default('0')) | int }}"
+        # Извлекаем числовое значение задержки блокировки (последнее слово в строке после split)
+        current_lock_delay: "{{ (gdm_settings.stdout_lines[2].split() | last | default('0')) | int }}"
+      changed_when: false  # Задача только устанавливает факты, не меняет систему
+      tags: 
+        - all
+        - cis-ubuntu    
+        - section1      
+        - 1.7.4
+
+    # ЗАДАЧА 3: Включение автоматической блокировки экрана GDM
+    - name: "Enable screen lock for GDM"
+      ansible.builtin.shell: |
+        # Включаем блокировку экрана для пользователя gdm
+        sudo -u gdm dbus-launch gsettings set org.gnome.desktop.screensaver lock-enabled true
+      when: not current_lock_enabled  # Условие: выполняем только если блокировка не включена
+      tags: 
+        - all
+        - cis-ubuntu    
+        - section1      
+        - 1.7.4        
+
+    # ЗАДАЧА 4: Настройка времени бездействия до блокировки(если нужно)
+    - name: "Set idle delay before lock for GDM"
+      ansible.builtin.shell: |
+        # Устанавливаем время бездействия 300 секунд (5 минут) для пользователя gdm
+        sudo -u gdm dbus-launch gsettings set org.gnome.desktop.session idle-delay {{ idle_delay }}
+      when: current_idle_delay | int != idle_delay | int  # Условие: только если текущее значение отличается
+      tags: 
+        - all
+        - cis-ubuntu    
+        - section1      
+        - 1.7.4
+
+    # ЗАДАЧА 5: Настройка немедленной блокировки после бездействия(если нужно)
+    - name: "Set lock delay for GDM"
+      ansible.builtin.shell: |
+        # Устанавливаем нулевую задержку блокировки (немедленная блокировка) для пользователя gdm
+        sudo -u gdm dbus-launch gsettings set org.gnome.desktop.screensaver lock-delay {{ lock_delay }}
+      when: current_lock_delay | int != lock_delay | int  # Условие: только если текущее значение отличается
+      tags: 
+        - all
+        - cis-ubuntu    
+        - section1      
+        - 1.7.4
+
+    # ЗАДАЧА 6: Проверка корректности примененной конфигурации
+    - name: "Verify GDM screen lock configuration"
+      ansible.builtin.shell: |
+        # Получаем текущие настройки для проверки
+        lock_enabled=$(sudo -u gdm dbus-launch gsettings get org.gnome.desktop.screensaver lock-enabled)
+        current_idle_delay=$(sudo -u gdm dbus-launch gsettings get org.gnome.desktop.session idle-delay)
+        current_lock_delay=$(sudo -u gdm dbus-launch gsettings get org.gnome.desktop.screensaver lock-delay)
+        
+        # Проверяем что все настройки установлены правильно
+        if [ "$lock_enabled" = "true" ] && \
+           [ "$current_idle_delay" = "uint32 {{ idle_delay }}" ] && \
+           [ "$current_lock_delay" = "uint32 {{ lock_delay }}" ]; then
+          echo "PERFECT"  # Конфигурация корректна
+        else
+          # Выводим детальную информацию об ошибке
+          echo "ERROR: lock_enabled=$lock_enabled, idle_delay=$current_idle_delay, lock_delay=$current_lock_delay"
+          exit 1  # Выход с ошибкой для failed_when
+        fi
+      register: lock_verify  
+      changed_when: false    
+      failed_when: "'PERFECT' not in lock_verify.stdout"  
+      tags: 
+        - all
+        - cis-ubuntu    
+        - section1      
+        - 1.7.4

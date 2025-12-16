@@ -1,0 +1,269 @@
+---
+- name: "1.2.2.1 | L1 | Configure automatic security updates every 6 months"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Устанавливаем пакет для автоматических обновлений
+    - name: "Install unattended-upgrades package"
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+        update_cache: yes
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 2: Настраиваем безопасные автоматические обновления (с проверкой содержимого)
+    - name: "Check current unattended-upgrades configuration"
+      ansible.builtin.stat:
+        path: /etc/apt/apt.conf.d/50unattended-upgrades
+      register: unattended_config
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    - name: "Configure safe automatic updates"
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        content: |
+          Unattended-Upgrade::Allowed-Origins {
+              "${distro_id}:${distro_codename}-security";
+          };
+          Unattended-Upgrade::Automatic-Reboot "false";
+          Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+          Unattended-Upgrade::Mail "root";
+          Unattended-Upgrade::MailOnlyOnError "true";
+          Unattended-Upgrade::Remove-Unused-Dependencies "true";
+          Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+        owner: root
+        group: root
+        mode: 0644
+        backup: yes
+      # Обновляем конфиг только если файла нет или в нем нет нужных настроек безопасности
+      when: >
+        not unattended_config.stat.exists or
+        '"${distro_id}:${distro_codename}-security"' not in lookup('file', '/etc/apt/apt.conf.d/50unattended-upgrades')
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 3: Настраиваем полугодовое расписание обновлений (с проверкой)
+    - name: "Check current auto-upgrades configuration"
+      ansible.builtin.stat:
+        path: /etc/apt/apt.conf.d/20auto-upgrades
+      register: auto_upgrades_config
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    - name: "Configure 6-month update schedule"
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "180";
+          APT::Periodic::Download-Upgradeable-Packages "180";
+          APT::Periodic::AutocleanInterval "180";
+          APT::Periodic::Unattended-Upgrade "180";
+          APT::Periodic::Verbose "1";
+        owner: root
+        group: root
+        mode: 0644
+      # Обновляем расписание только если файла нет или период не установлен на 180 дней
+      when: >
+        not auto_upgrades_config.stat.exists or
+        'APT::Periodic::Unattended-Upgrade "180"' not in lookup('file', '/etc/apt/apt.conf.d/20auto-upgrades')
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 4: Проверяем существование и валидность systemd файлов
+    - name: "Check if timer file exists and is valid"
+      ansible.builtin.shell: |
+        # Проверяем наличие и валидность timer файла через systemd-analyze
+        if [ -f /etc/systemd/system/apt-security-updates.timer ]; then
+          systemd-analyze verify /etc/systemd/system/apt-security-updates.timer >/dev/null 2>&1 && echo "VALID" || echo "INVALID"
+        else
+          echo "MISSING"
+        fi
+      register: timer_status
+      changed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    - name: "Check if service file exists and is valid"
+      ansible.builtin.shell: |
+        # Проверяем наличие и валидность service файла через systemd-analyze
+        if [ -f /etc/systemd/system/apt-security-updates.service ]; then
+          systemd-analyze verify /etc/systemd/system/apt-security-updates.service >/dev/null 2>&1 && echo "VALID" || echo "INVALID"
+        else
+          echo "MISSING"
+        fi
+      register: service_status
+      changed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 5: Удаляем только невалидные файлы
+    - name: "Remove invalid timer file"
+      ansible.builtin.file:
+        path: /etc/systemd/system/apt-security-updates.timer
+        state: absent
+      # Удаляем только если файл есть но он невалиден
+      when: timer_status.stdout == "INVALID"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    - name: "Remove invalid service file"
+      ansible.builtin.file:
+        path: /etc/systemd/system/apt-security-updates.service
+        state: absent
+      # Удаляем только если файл есть но он невалиден
+      when: service_status.stdout == "INVALID"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 6: Перезагружаем systemd только если удаляли файлы
+    - name: "Reload systemd daemon if needed"
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      # Перезагружаем systemd только если были удалены невалидные файлы
+      when: timer_status.stdout == "INVALID" or service_status.stdout == "INVALID"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 7: Создаем timer только если его нет или он невалиден
+    - name: "Create correct 6-month update timer"
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/apt-security-updates.timer
+        # Чистый systemd timer файл без комментариев (чтобы избежать ошибок парсинга)
+        content: |
+          [Unit]
+          Description=Run security updates every 6 months
+          
+          [Timer]
+          OnCalendar=*-03-01 02:00:00
+          OnCalendar=*-09-01 02:00:00
+          Persistent=true
+          RandomizedDelaySec=3600
+          
+          [Install]
+          WantedBy=timers.target
+        owner: root
+        group: root
+        mode: 0644
+      # Создаем timer только если его нет или он невалиден
+      when: timer_status.stdout != "VALID"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 8: Создаем service только если его нет или он невалиден
+    - name: "Create correct security updates service"
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/apt-security-updates.service
+        # Чистый systemd service файл без комментариев (чтобы избежать ошибок парсинга)
+        content: |
+          [Unit]
+          Description=Install security updates
+          After=network-online.target
+          Wants=network-online.target
+          
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/unattended-upgrade
+          TimeoutStopSec=1800
+        owner: root
+        group: root
+        mode: 0644
+      # Создаем service только если его нет или он невалиден
+      when: service_status.stdout != "VALID"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 9: Перезагружаем systemd если создавали файлы
+    - name: "Reload systemd daemon after creating files"
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      # Перезагружаем systemd только если создавали новые файлы
+      when: timer_status.stdout != "VALID" or service_status.stdout != "VALID"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 10: Проверяем что timer включен и активен
+    - name: "Check timer state"
+      ansible.builtin.systemd:
+        name: apt-security-updates.timer
+      register: timer_state
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    - name: "Enable security updates timer if needed"
+      ansible.builtin.systemd:
+        name: apt-security-updates.timer
+        enabled: yes
+        state: started
+      # Включаем timer только если он не активен или не включен
+      when: >
+        not timer_state.status.ActiveState == 'active' or
+        not timer_state.status.UnitFileState == 'enabled'
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1
+
+    # ЗАДАЧА 11: Финальная проверка всей конфигурации
+    - name: "Final verification"
+      ansible.builtin.shell: |
+        echo "=== Automatic Security Updates Configuration Status ==="
+        echo "Package installed: $(dpkg -l unattended-upgrades >/dev/null 2>&1 && echo 'YES' || echo 'NO')"
+        echo "Config files present: $(ls /etc/apt/apt.conf.d/20auto-upgrades /etc/apt/apt.conf.d/50unattended-upgrades >/dev/null 2>&1 && echo 'YES' || echo 'NO')"
+        echo "Timer status: $(systemctl is-active apt-security-updates.timer 2>/dev/null || echo 'INACTIVE')"
+        echo "Timer enabled: $(systemctl is-enabled apt-security-updates.timer 2>/dev/null || echo 'DISABLED')"
+        echo "Next scheduled run: $(systemctl list-timers apt-security-updates.timer 2>/dev/null | grep -o '202.*' | head -1 || echo 'NOT SCHEDULED')"
+        echo "=== CIS 1.2.2.1 Compliance: Automatic security updates configured for 6-month intervals ==="
+      register: final_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.2.2.1

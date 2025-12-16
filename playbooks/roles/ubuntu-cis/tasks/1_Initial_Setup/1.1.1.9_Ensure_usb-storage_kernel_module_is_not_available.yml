@@ -1,0 +1,123 @@
+---
+- name: "1.1.1.9 | L1 | Ensure USB storage is disabled"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем текущую конфигурацию модуля usb-storage
+    - name: "Check current USB storage configuration"
+      ansible.builtin.shell: |
+        # Проверяем есть ли уже правильная конфигурация
+        if [ -f /etc/modprobe.d/usb-storage.conf ]; then
+          # Проверяем содержит ли файл ОБЕ нужные строки (ищет строки)
+          if grep -q "blacklist usb_storage" /etc/modprobe.d/usb-storage.conf && \
+             grep -q "install usb_storage /bin/false" /etc/modprobe.d/usb-storage.conf; then
+            echo "CONFIG_CORRECT" # Конфигурация уже правильная
+          else
+            echo "CONFIG_WRONG"   # Файл есть, но настройки неправильные
+          fi
+        else
+          echo "NOT_CONFIGURED"   # Файла конфигурации вообще нет
+        fi
+      register: usb_config_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.9
+
+    # ЗАДАЧА 2: Создаем конфигурационный файл для отключения USB storage
+    - name: "Configure USB storage disable"
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/usb-storage.conf # Путь к конфигурационному файлу
+        content: |
+          # CIS Ubuntu Benchmark - USB storage disabled
+          # Prevent unauthorized USB devices and protect from USB malware
+          blacklist usb_storage      # Добавляем модуль в черный список
+          install usb_storage /bin/false  # При попытке загрузки возвращаем ошибку
+        owner: root
+        group: root
+        mode: 0644
+        backup: yes
+      when: >
+        usb_config_check.stdout != "CONFIG_CORRECT"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.9
+
+    # ЗАДАЧА 3: Проверяем загружен ли модуль usb_storage
+    - name: "Check if USB storage module is loaded"
+      ansible.builtin.shell: |
+        # lsmod - показывает список загруженных модулей ядра
+        # grep -q "usb_storage" - ищет модуль usb_storage в списке
+        if lsmod | grep -q "usb_storage"; then
+          echo "MODULE_LOADED"    # Модуль загружен в память ядра
+        else
+          echo "MODULE_NOT_LOADED"  # Модуль не загружен
+        fi
+      register: usb_module_check # Сохраняем статус модуля
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.9
+
+    # ЗАДАЧА 4: Выгружаем модуль usb_storage (только если загружен)
+    - name: "Unload USB storage module"
+      ansible.builtin.shell: |
+        # modprobe -r - выгружает модуль из ядра Linux
+        # usb_storage - название модуля USB-накопителей
+        modprobe -r usb_storage
+      when: "'MODULE_LOADED' in usb_module_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.9
+
+    # ЗАДАЧА 5: Проверяем конечную конфигурацию
+    - name: "Verify USB storage is disabled"
+      ansible.builtin.shell: |
+        config_ok="NO"
+        module_ok="NO"
+        modprobe_ok="NO"
+        
+        # Проверяем конфигурационный файл (должен существовать и содержать обе строки)
+        if [ -f /etc/modprobe.d/usb-storage.conf ] && \
+           grep -q "blacklist usb_storage" /etc/modprobe.d/usb-storage.conf && \
+           grep -q "install usb_storage /bin/false" /etc/modprobe.d/usb-storage.conf; then
+          config_ok="YES"
+        fi
+        
+        # Проверяем что модуль не загружен
+        if ! lsmod | grep -q "usb_storage"; then
+          module_ok="YES"
+        fi
+        
+        # Проверяем настройки modprobe
+        if modprobe --showconfig | grep -q "blacklist usb_storage" && \
+           modprobe --showconfig | grep -q "install usb_storage /bin/false"; then
+          modprobe_ok="YES"
+        fi
+        
+        # Если все три условия выполнены - настройка успешна
+        if [ "$config_ok" = "YES" ] && [ "$module_ok" = "YES" ] && [ "$modprobe_ok" = "YES" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: config=$config_ok, module=$module_ok, modprobe=$modprobe_ok"
+          exit 1
+        fi
+      register: usb_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in usb_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.1.1.9

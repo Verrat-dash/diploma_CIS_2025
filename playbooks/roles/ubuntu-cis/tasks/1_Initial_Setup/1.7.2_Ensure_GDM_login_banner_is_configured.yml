@@ -1,0 +1,109 @@
+---
+- name: "1.7.2 | L1 | Ensure GDM login banner is configured"
+  hosts: ubuntu
+  become: yes
+  vars:
+    # \\n в YAML преобразуется в \n в итоговом файле (стандартные переносы строк для GDM)
+    expected_banner_text: "======= WARNING =======\\n\\nUnauthorized access prohibited\\nAll activities are logged\\nViolators will be prosecuted"
+  tasks:
+
+    # ЗАДАЧА 1: Проверка текущего состояния баннера входа GDM
+    - name: "Check current banner configuration"
+      ansible.builtin.shell: |
+        # Проверяем существует ли файл конфигурации GDM
+        if [ -f /etc/gdm3/greeter.dconf-defaults ]; then
+          # Проверяем включен ли баннер
+          if grep -q 'banner-message-enable=true' /etc/gdm3/greeter.dconf-defaults; then
+            banner_enabled="true"
+          else
+            banner_enabled="false"
+          fi
+          
+          # Извлекаем текущий текст баннера
+          current_text=$(grep 'banner-message-text=' /etc/gdm3/greeter.dconf-defaults | sed 's/^[[:space:]]*banner-message-text=//' | tr -d '"' 2>/dev/null || echo "MISSING")
+          
+          # Проверяем соответствует ли текст ожидаемому 
+          expected_text="{{ expected_banner_text }}"
+          if [ "$current_text" = "$expected_text" ]; then
+            banner_text="correct"
+          else
+            banner_text="wrong" # Текст баннера неправильный или отсутствует
+            echo "DEBUG: Current='$current_text'" >&2
+            echo "DEBUG: Expected='$expected_text'" >&2
+          fi
+          
+          # Формируем строку состояния для последующего парсинга в Ansible
+          echo "enabled:$banner_enabled,text:$banner_text"
+        else
+          echo "FILE_MISSING" # Файл конфигурации отсутствует
+        fi
+      register: banner_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.2      
+
+    # ЗАДАЧА 2: Настройка включения баннера (если нужно)
+    - name: "Configure banner enable"
+      ansible.builtin.lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        regexp: '^\s*banner-message-enable\s*='
+        line: 'banner-message-enable=true'
+        insertafter: '\[org/gnome/login-screen\]' # Вставляем после секции GDM
+        create: yes
+      when: >
+        banner_check.stdout == "FILE_MISSING" or
+        "'enabled:false' in banner_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.2 
+
+    # ЗАДАЧА 3: Настройка текста баннера (если нужно)
+    - name: "Configure banner text"
+      ansible.builtin.lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        regexp: '^\s*banner-message-text\s*=' # Ищем параметр текста баннера
+        line: 'banner-message-text="{{ expected_banner_text }}"'
+        insertafter: '\[org/gnome/login-screen\]'
+        create: yes
+      when: >
+        banner_check.stdout == "FILE_MISSING" or
+        "'text:wrong' in banner_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.2 
+
+    # ЗАДАЧА 4: Проверка корректности примененной конфигурации
+    - name: "Verify banner configuration"
+      ansible.builtin.shell: |
+        # Проверяем что баннер включен
+        banner_enabled=$(grep -c 'banner-message-enable=true' /etc/gdm3/greeter.dconf-defaults)
+        
+        # Извлекаем текущий текст
+        current_text=$(grep 'banner-message-text=' /etc/gdm3/greeter.dconf-defaults | sed 's/^[[:space:]]*banner-message-text=//' | tr -d '"')
+        expected_text="{{ expected_banner_text }}"
+        
+        # Точное сравнение (учитывая YAML-экранирование)
+        if [ "$banner_enabled" -eq 1 ] && [ "$current_text" = "$expected_text" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: banner_enabled=$banner_enabled"
+          echo "Current: '$current_text'"
+          echo "Expected: '$expected_text'"
+          exit 1
+        fi
+      register: banner_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in banner_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.2 

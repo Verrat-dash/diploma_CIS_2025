@@ -1,0 +1,64 @@
+---
+- name: "1.7.3 | L1 | Ensure GDM disable-user-list option is enabled"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем текущее состояние
+    - name: "Check current user list setting"
+      ansible.builtin.shell: |
+        # Проверяем существует ли файл конфигурации GDM
+        if [ -f /etc/gdm3/greeter.dconf-defaults ]; then
+          # Проверяем установлен ли параметр disable-user-list в true
+          if grep -q 'disable-user-list=true' /etc/gdm3/greeter.dconf-defaults; then
+            echo "ENABLED"  # Настройка уже активна
+          else
+            echo "DISABLED"  # Настройка неактивна или установлено другое значение
+          fi
+        else
+          echo "FILE_MISSING"  # Файл конфигурации отсутствует
+        fi
+      register: user_list_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.3
+
+    # ЗАДАЧА 2: Настраиваем отключение списка пользователей (если нужно)
+    - name: "Configure disable user list"
+      ansible.builtin.lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        regexp: '^\s*disable-user-list\s*='
+        line: 'disable-user-list=true'
+        insertafter: '\[org/gnome/login-screen\]' # Вставляем этой после секции 
+        create: yes
+      when: > 
+        user_list_check.stdout == "DISABLED" or 
+        user_list_check.stdout == "FILE_MISSING"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.3
+
+    # ЗАДАЧА 3: Проверяем конфигурацию
+    - name: "Verify user list is disabled"
+      ansible.builtin.shell: |
+        # Проверяем что параметр disable-user-list установлен в true
+        if grep -q 'disable-user-list=true' /etc/gdm3/greeter.dconf-defaults; then
+          echo "PERFECT"
+        else
+          echo "ERROR"
+          exit 1
+        fi
+      register: user_list_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in user_list_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.7.3

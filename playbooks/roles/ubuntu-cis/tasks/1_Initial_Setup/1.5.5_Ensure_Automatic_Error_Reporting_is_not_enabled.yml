@@ -1,0 +1,123 @@
+---
+- name: "1.5.5 | L1 | Ensure automatic error reporting is disabled"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем текущую настройку в /etc/default/apport
+    - name: "Check current Apport configuration"
+      ansible.builtin.shell: |
+        if grep -q "^enabled=0" /etc/default/apport 2>/dev/null; then
+          echo "CONFIG_CORRECT"  # Уже правильно отключен
+        elif grep -q "^enabled=" /etc/default/apport 2>/dev/null; then
+          # Получаем текущее значение параметра enabled
+          current=$(grep "^enabled=" /etc/default/apport | cut -d= -f2)
+          echo "CONFIG_WRONG:$current"  # Неправильное значение
+        else
+          echo "NOT_CONFIGURED"  # Параметр вообще отсутствует
+        fi
+      register: apport_config_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.5.5
+
+    # ЗАДАЧА 2: Настраиваем отключение Apport в конфигурационном файле
+    - name: "Disable Apport in configuration file"
+      ansible.builtin.lineinfile:
+        path: /etc/default/apport  # Конфигурационный файл Apport
+        regexp: '^\s*enabled\s*='  # Ищем строку начинающуюся с enabled
+        line: 'enabled=0'          # Устанавливаем значение 0 (отключено)
+        state: present             # Убедиться что строка присутствует
+        backup: yes                # Создать резервную копию перед изменением
+      when: >
+        apport_config_check.stdout != "CONFIG_CORRECT"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.5.5
+
+    # ЗАДАЧА 3: Проверяем статус службы Apport
+    - name: "Check Apport service status"
+      ansible.builtin.shell: |
+        # Проверяем несколько состояний службы
+        if systemctl is-active apport.service 2>/dev/null | grep -q "inactive"; then
+          echo "SERVICE_INACTIVE"  # Служба остановлена
+        elif systemctl is-enabled apport.service 2>/dev/null | grep -q "masked"; then
+          echo "SERVICE_MASKED"    # Служба заблокирована (маскирована)
+        else
+          echo "SERVICE_ACTIVE"    # Служба работает
+        fi
+      register: apport_service_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.5.5
+
+    # ЗАДАЧА 4: Останавливаем службу Apport (только если активна)
+    - name: "Stop Apport service"
+      ansible.builtin.systemd:
+        name: apport.service  # Название службы
+        state: stopped        # Остановить службу
+      when: "'SERVICE_ACTIVE' in apport_service_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.5.5
+
+    # ЗАДАЧА 5: Маскируем службу Apport (чтобы не запускалась автоматически)
+    - name: "Mask Apport service"
+      ansible.builtin.systemd:
+        name: apport.service
+        masked: yes  # Маскируем службу (блокируем автозапуск)
+      when: "'SERVICE_MASKED' not in apport_service_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.5.5
+
+    # ЗАДАЧА 6: Проверяем конечную конфигурацию
+    - name: "Verify Apport is disabled"
+      ansible.builtin.shell: |
+        config_ok="NO"
+        service_ok="NO"
+        masked_ok="NO"
+        
+        # Проверяем конфигурационный файл (должен быть enabled=0)
+        if grep -q "^enabled=0" /etc/default/apport; then
+          config_ok="YES"
+        fi
+        
+        # Проверяем что служба не активна
+        if systemctl is-active apport.service 2>/dev/null | grep -q "inactive"; then
+          service_ok="YES"
+        fi
+        
+        # Проверяем что служба замаскирована (не может запуститься)
+        if systemctl is-enabled apport.service 2>/dev/null | grep -q "masked"; then
+          masked_ok="YES"
+        fi
+        
+        if [ "$config_ok" = "YES" ] && [ "$service_ok" = "YES" ] && [ "$masked_ok" = "YES" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: config=$config_ok, service=$service_ok, masked=$masked_ok"
+          exit 1
+        fi
+      register: apport_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in apport_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section1
+        - 1.5.5
