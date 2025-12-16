@@ -15,20 +15,27 @@ Ansible playbooks для автоматизации тестирования б�
 *   **WSL2 (Ubuntu)** — среда для запуска Ansible на хосте Windows.
 
 ## 📁 Структура репозитория
+
 ```text
 diploma_CIS_2025/
-├── playbooks/ # Плейбуки Ansible
-│ ├── apply-ubuntu-cis.yml # Главный плейбук для Ubuntu
-│ ├── apply-windows-cis.yml # Главный плейбук для Windows
-│ └── roles/ # Роли с задачами
-│ ├── ubuntu-cis/tasks/ # 21 настройка для Ubuntu
-│ └── windows-cis/tasks/ # 22 настройки для Windows
-├── Vagrantfile # Конфигурация виртуальных машин
-├── inventory.ini # Файл инвентаризации Ansible
-├── screenshots/ # Скриншоты выполнения и проверки
-│ ├── ubuntu/ # Результаты для Ubuntu
-│ └── windows/ # Результаты для Windows
-└── README.md # Этот файл
+├── Vagrantfile                     # Декларативное описание виртуальных машин
+├── inventory.ini                   # Файл инвентаризации для Ansible
+├── playbooks/
+│   ├── apply-ubuntu-cis.yml        # Главный плейбук для Ubuntu
+│   ├── apply-windows-cis.yml       # Главный плейбук для Windows
+│   └── roles/                      # Роли с задачами
+│       ├── ubuntu-cis/
+│       │   └── tasks/
+│       │       ├── 1_Initial_Setup/     # Настройки лежат в разделах
+│       │       ├── 5_Access_Control/
+│       │       └── ...                  # Другие разделы CIS
+│       └── windows-cis/
+│           └── tasks/
+│               ├── 26_Device_Lock/
+│               ├── 49_Local_Policies_Security_Options/
+│               └── ...                   # Другие разделы CIS
+├── screenshots/                     # Скриншоты выполнения
+└── README.md                        # Документация проекта
 ```
 
 ## 📋 Реализованные настройки CIS Benchmarks
