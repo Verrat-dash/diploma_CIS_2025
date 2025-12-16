@@ -145,12 +145,13 @@ diploma_CIS_2025/
 
 ```bash
 cp .vagrant/machines/ubuntu-cis-hardened/virtualbox/private_key ~/ubuntu_private_key
+```
 Протестируйте подключение к Ubuntu:
 
 ```bash
 ansible -i inventory.ini ubuntu -m ping
 ```
-Ожидаемый ответ: "ping": "pong"
+Ожидаемый ответ: ```"ping": "pong"```
 
 Примените настройки CIS для Ubuntu:
 
