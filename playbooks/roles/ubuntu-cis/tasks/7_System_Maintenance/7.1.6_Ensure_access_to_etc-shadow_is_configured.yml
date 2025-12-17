@@ -1,0 +1,124 @@
+---
+- name: "7.1.6 | L1 | Ensure permissions on /etc/shadow are configured"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем текущие права доступа файла /etc/shadow
+    - name: "Check current permissions of /etc/shadow"
+      ansible.builtin.stat:
+        path: /etc/shadow
+      register: shadow_perms
+      tags: 
+        - all
+        - cis-ubuntu
+        - section7
+        - 7.1.6
+
+    # ЗАДАЧА 2: Проверяем владельца файла (должен быть root:shadow)
+    - name: "Verify file owner and group"
+      ansible.builtin.shell: |
+        owner_ok="NO"
+        group_ok="NO"
+        
+        # Проверяем что владелец файла - root
+        if [ "$(stat -c %U /etc/shadow)" = "root" ]; then
+          owner_ok="YES"
+        fi
+        
+        # Проверяем что группа файла - shadow(где хранятся хэши паролей, сроки их действия)
+        if [ "$(stat -c %G /etc/shadow)" = "shadow" ]; then
+          group_ok="YES"
+        fi
+        
+        # Формируем результат проверки
+        if [ "$owner_ok" = "YES" ] && [ "$group_ok" = "YES" ]; then
+          echo "OWNER_CORRECT"
+        else
+          echo "OWNER_WRONG:user=$(stat -c %U /etc/shadow),group=$(stat -c %G /etc/shadow)"
+        fi
+      register: owner_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section7
+        - 7.1.6
+
+    # ЗАДАЧА 3: Проверяем права доступа (должны быть 640)
+    - name: "Verify file permissions"
+      ansible.builtin.shell: |
+        current_perms=$(stat -c %a /etc/shadow)
+        if [ "$current_perms" = "640" ]; then
+          echo "PERMS_CORRECT"
+        else
+          echo "PERMS_WRONG:$current_perms"
+        fi
+      register: perms_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section7
+        - 7.1.6
+
+    # ЗАДАЧА 4: Устанавливаем правильного владельца (только если нужно)
+    - name: "Set correct owner and group for /etc/shadow"
+      ansible.builtin.file:
+        path: /etc/shadow
+        owner: root    # Владелец: root
+        group: shadow  # Группа: shadow
+        state: file
+      when: "'OWNER_WRONG' in owner_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section7
+        - 7.1.6
+
+    # ЗАДАЧА 5: Устанавливаем правильные права доступа (только если нужно)
+    - name: "Set correct permissions for /etc/shadow"
+      ansible.builtin.file:
+        path: /etc/shadow
+        mode: '0640'  # Права: 640 (rw-r-----)
+        state: file
+      when: "'PERMS_WRONG' in perms_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section7
+        - 7.1.6
+
+    # ЗАДАЧА 6: Проверяем конечную конфигурацию
+    - name: "Verify final shadow configuration"
+      ansible.builtin.shell: |
+        owner_ok="NO"   # Флаг для проверки владельца
+        group_ok="NO"   # Флаг для проверки группы  
+        perms_ok="NO"   # Флаг для проверки прав доступа
+        
+        # Проверяем владельца (должен быть root:shadow)
+        if [ "$(stat -c %U /etc/shadow)" = "root" ] && [ "$(stat -c %G /etc/shadow)" = "shadow" ]; then
+          owner_ok="YES"
+        fi
+        
+        # Проверяем права доступа (должны быть 640)
+        if [ "$(stat -c %a /etc/shadow)" = "640" ]; then
+          perms_ok="YES"
+        fi
+        
+        if [ "$owner_ok" = "YES" ] && [ "$perms_ok" = "YES" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: owner=$owner_ok, permissions=$perms_ok"
+          exit 1
+        fi
+      register: shadow_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in shadow_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section7
+        - 7.1.6

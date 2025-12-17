@@ -1,0 +1,141 @@
+---
+- name: "5.1.20 | L1 | Ensure SSH PermitRootLogin is disabled"
+  hosts: ubuntu
+  become: yes
+  vars:
+    ssh_permit_root_login: "no"
+  tasks:
+
+    # ЗАДАЧА 1: Проверка безопасности - есть ли sudo пользователи
+    - name: "Check if sudo users exist (SAFETY CHECK)"
+      ansible.builtin.shell: |
+        sudo_users=$(getent group sudo | cut -d: -f4 | tr ',' '\n' | grep -v '^$' | wc -l)
+        if [ $sudo_users -gt 0 ]; then
+          echo "SUDO_USERS_EXIST:$sudo_users"
+        else
+          echo "NO_SUDO_USERS"
+        fi
+      register: sudo_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 2: Проверяем текущее состояние SSH
+    - name: "Check current PermitRootLogin configuration"
+      ansible.builtin.shell: |
+        if grep -q "^PermitRootLogin {{ ssh_permit_root_login }}$" /etc/ssh/sshd_config; then
+          echo "CONFIG_CORRECT"
+        elif grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
+          current=$(grep "^PermitRootLogin" /etc/ssh/sshd_config | awk '{print $2}')
+          echo "CONFIG_WRONG:$current"
+        else
+          echo "NOT_CONFIGURED"
+        fi
+      register: ssh_root_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 3: Настраиваем PermitRootLogin (только если ЕСТЬ sudo пользователи)
+    - name: "Configure SSH PermitRootLogin"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^\s*PermitRootLogin\s+'
+        line: 'PermitRootLogin {{ ssh_permit_root_login }}'
+        state: present
+        backup: yes
+      register: ssh_root_config_changed
+      when: >
+        ssh_root_check.stdout != "CONFIG_CORRECT" and
+        "'SUDO_USERS_EXIST' in sudo_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 4: Удаляем закомментированные дубликаты 
+    - name: "Remove commented PermitRootLogin lines"
+      ansible.builtin.replace:
+        path: /etc/ssh/sshd_config
+        regexp: '^\s*#\s*PermitRootLogin.*'
+        replace: ''
+      when: "'SUDO_USERS_EXIST' in sudo_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 5: ПРЕДУПРЕЖДЕНИЕ если нет sudo пользователей 
+    - name: "WARNING - No sudo users found"
+      ansible.builtin.debug:
+        msg: |
+          SAFETY WARNING: No sudo users detected!
+          Disabling root login would lock you out of the system.
+          Create at least one user with sudo privileges first:
+          sudo adduser username
+          sudo usermod -aG sudo username
+      when: "'NO_SUDO_USERS' in sudo_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 6: Проверяем синтаксис конфига
+    - name: "Validate SSH configuration syntax"
+      ansible.builtin.shell: |
+        sshd -t
+      register: ssh_syntax_check
+      changed_when: false
+      failed_when: ssh_syntax_check.rc != 0
+      when: "'SUDO_USERS_EXIST' in sudo_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 7: Перезагружаем SSH (только если безопасно И были изменения)
+    - name: "Reload SSH service"
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded
+      when: >
+        ssh_root_config_changed is defined and 
+        ssh_root_config_changed.changed and 
+        ssh_syntax_check.rc == 0 and
+        "'SUDO_USERS_EXIST' in sudo_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20
+
+    # ЗАДАЧА 8: Проверяем конфигурацию
+    - name: "Verify SSH PermitRootLogin configuration"
+      ansible.builtin.shell: |
+        if sshd -T | grep -q "permitrootlogin {{ ssh_permit_root_login }}"; then
+          echo "PERFECT"
+        else
+          echo "ERROR"
+          exit 1
+        fi
+      register: ssh_root_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in ssh_root_verify.stdout"
+      when: "'SUDO_USERS_EXIST' in sudo_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.20

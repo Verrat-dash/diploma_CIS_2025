@@ -1,0 +1,108 @@
+---
+- name: "5.1.16 | L1 | Ensure SSH MaxAuthTries is configured"
+  hosts: ubuntu
+  become: yes
+  vars:
+    ssh_max_auth_tries: 4
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем текущее состояние
+    - name: "Check current SSH configuration"
+      ansible.builtin.shell: |
+        # Проверяем три возможных состояния конфигурации:
+        # 1. Параметр уже установлен правильно - CONFIG_CORRECT
+        # 2. Параметр есть но с неправильным значением - CONFIG_WRONG:current_value  
+        # 3. Параметра нет вообще - NOT_CONFIGURED
+        if grep -q "^MaxAuthTries {{ ssh_max_auth_tries }}$" /etc/ssh/sshd_config; then
+          echo "CONFIG_CORRECT"
+        elif grep -q "^MaxAuthTries" /etc/ssh/sshd_config; then
+          current=$(grep "^MaxAuthTries" /etc/ssh/sshd_config | awk '{print $2}')
+          echo "CONFIG_WRONG:$current"
+        else
+          echo "NOT_CONFIGURED"
+        fi
+      register: ssh_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.16
+
+    # ЗАДАЧА 2: Настраиваем MaxAuthTries (только если нужно)
+    - name: "Configure SSH MaxAuthTries"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^\s*MaxAuthTries\s+'
+        line: 'MaxAuthTries {{ ssh_max_auth_tries }}' # Устанавливаем правильное значение
+        state: present # Обеспечиваем что строка присутствует
+        backup: yes
+      register: ssh_config_changed
+      when: ssh_check.stdout != "CONFIG_CORRECT"  # Меняем только если НЕ корректно
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.16
+
+    # ЗАДАЧА 3: Удаляем закомментированные дубликаты MaxAuthTries 
+    - name: "Remove commented MaxAuthTries lines"
+      ansible.builtin.replace:
+        path: /etc/ssh/sshd_config
+        regexp: '^\s*#\s*MaxAuthTries.*'
+        replace: ''
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.16
+
+    # ЗАДАЧА 4: Проверяем синтаксис конфига
+    - name: "Validate SSH configuration syntax"
+      ansible.builtin.shell: |
+        sshd -t
+      register: ssh_syntax_check
+      changed_when: false
+      failed_when: ssh_syntax_check.rc != 0 # Завершаемся ошибкой если синтаксис неверный
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.16
+
+    # ЗАДАЧА 5: Перезагружаем SSH (только если были изменения И синтаксис правильный)
+    - name: "Reload SSH service"
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded
+    # Применяется когда: 1)Переменная существует, 2)Конфиг БЫЛ изменен, 3)Синтаксис проверен успешно
+      when: >
+        ssh_config_changed is defined and 
+        ssh_config_changed.changed and 
+        ssh_syntax_check.rc == 0
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.16
+
+    # ЗАДАЧА 6: Проверяем конфигурацию
+    - name: "Verify SSH configuration"
+      ansible.builtin.shell: |
+        # Проверяем что SSH сервер использует правильные настройки
+        # sshd -T показывает текущие активные настройки (после перезагрузки)
+        if sshd -T | grep -q "maxauthtries {{ ssh_max_auth_tries }}"; then
+          echo "PERFECT"  # Все настроено правильно
+        else
+          echo "ERROR"    # Настройка не применилась
+          exit 1
+        fi
+      register: ssh_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in ssh_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section5
+        - 5.1.16

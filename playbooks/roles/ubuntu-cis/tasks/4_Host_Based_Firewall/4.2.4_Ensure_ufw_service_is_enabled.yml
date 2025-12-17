@@ -1,0 +1,92 @@
+---
+- name: "4.2.4 | L1 | Ensure ufw service is enabled"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем статус службы ufw
+    - name: "Check ufw service status"
+      ansible.builtin.shell: |
+        # Проверяем включена ли служба ufw (автозагрузка)
+        if systemctl is-enabled ufw 2>/dev/null | grep -q "enabled"; then
+          echo "SERVICE_ENABLED"
+        else
+          echo "SERVICE_DISABLED"
+        fi
+      register: service_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.4
+
+    # ЗАДАЧА 2: Проверяем статус фаервола ufw
+    - name: "Check ufw firewall status"
+      ansible.builtin.shell: |
+        # Проверяем активен ли фаервол
+        ufw status | grep -q "Status: active" && echo "FIREWALL_ACTIVE" || echo "FIREWALL_INACTIVE"
+      register: firewall_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.4
+        
+    # ЗАДАЧА 3: Включаем автозагрузку службы ufw (только если выключена)
+    - name: "Enable ufw service at boot"
+      ansible.builtin.systemd:
+        name: ufw
+        enabled: yes  # Включаем автозагрузку при старте системы
+      when: "'SERVICE_DISABLED' in service_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.4
+
+    # ЗАДАЧА 4: Включаем фаервол ufw (только если выключен)
+    - name: "Enable ufw firewall"
+      ansible.builtin.shell: |
+        # Включаем фаервол (отвечает 'y' на запрос подтверждения)
+        echo "y" | ufw enable
+      when: "'FIREWALL_INACTIVE' in firewall_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.4
+
+    # ЗАДАЧА 5: Проверяем конечную конфигурацию
+    - name: "Verify ufw configuration"
+      ansible.builtin.shell: |
+        service_ok="NO"
+        firewall_ok="NO"
+        
+        # Проверяем что служба включена
+        if systemctl is-enabled ufw 2>/dev/null | grep -q "enabled"; then
+          service_ok="YES"
+        fi
+        
+        # Проверяем что фаервол активен
+        if ufw status | grep -q "Status: active"; then
+          firewall_ok="YES"
+        fi
+        
+        if [ "$service_ok" = "YES" ] && [ "$firewall_ok" = "YES" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: service=$service_ok, firewall=$firewall_ok"
+          exit 1
+        fi
+      register: ufw_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in ufw_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.4

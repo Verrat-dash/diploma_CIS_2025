@@ -1,0 +1,99 @@
+---
+- name: "4.2.8 | L1 | Ensure ufw default deny policy is configured"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 0: ГАРАНТИРУЕМ что SSH порт 22 открыт (для доступа Ansible)
+    - name: "Ensure SSH port 22 is allowed"
+      ansible.builtin.shell: |
+        # Открываем порт SSH чтобы не потерять подключение
+        ufw allow 22/tcp
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.8
+
+    # ЗАДАЧА 1: Проверяем текущую политику по умолчанию для входящего трафика
+    - name: "Check current ufw default incoming policy"
+      ansible.builtin.shell: |
+        # Получаем текущую политику для входящих соединений
+        ufw status verbose | grep "Default:" | awk '{print $2}'
+      register: incoming_policy_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.8
+
+    # ЗАДАЧА 2: Проверяем текущую политику по умолчанию для исходящего трафика
+    - name: "Check current ufw default outgoing policy"
+      ansible.builtin.shell: |
+        # Получаем текущую политику для исходящих соединений
+        ufw status verbose | grep "Default:" | awk '{print $4}'
+      register: outgoing_policy_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.8
+
+    # ЗАДАЧА 3: Устанавливаем политику deny для входящего трафика (только если не deny)
+    - name: "Set default deny incoming policy"
+      ansible.builtin.shell: |
+        # Это означает: блокировать все входящие соединения, кроме явно разрешенных
+        ufw default deny incoming
+      when: "'deny' not in incoming_policy_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.8
+
+    # ЗАДАЧА 4: Устанавливаем политику allow для исходящего трафика (только если не allow)
+    - name: "Set default allow outgoing policy"
+      ansible.builtin.shell: |
+        # Это означает: разрешать все исходящие соединения (можно свободно выходить в интернет)
+        ufw default allow outgoing
+      when: "'allow' not in outgoing_policy_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.8
+
+    # ЗАДАЧА 5: Проверяем конечную конфигурацию
+    - name: "Verify ufw default policies"
+      ansible.builtin.shell: |
+        incoming_ok="NO"
+        outgoing_ok="NO"
+        
+        # Проверяем политику входящего трафика
+        if ufw status verbose | grep "Default:" | awk '{print $2}' | grep -q "deny"; then
+          incoming_ok="YES"
+        fi
+        
+        # Проверяем политику исходящего трафика
+        if ufw status verbose | grep "Default:" | awk '{print $4}' | grep -q "allow"; then
+          outgoing_ok="YES"
+        fi
+        
+        if [ "$incoming_ok" = "YES" ] && [ "$outgoing_ok" = "YES" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: incoming=$incoming_ok, outgoing=$outgoing_ok"
+          exit 1
+        fi
+      register: ufw_policy_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in ufw_policy_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.8

@@ -1,0 +1,69 @@
+---
+- name: "4.2.1 | L1 | Ensure ufw is installed"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем установлен ли ufw
+    - name: "Check if ufw is installed"
+      ansible.builtin.shell: |
+        # Проверяем доступна ли команда ufw в системе
+        if command -v ufw >/dev/null 2>&1; then
+          echo "UFW_INSTALLED"  # UFW уже установлен
+        else
+          echo "UFW_NOT_INSTALLED"  # UFW не установлен
+        fi
+      register: ufw_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.1
+
+    # ЗАДАЧА 2: Обновляем apt cache (только если ufw не установлен)
+    - name: "Update apt cache"
+      ansible.builtin.apt:
+        update_cache: yes        # Обновляем список пакетов (apt update)
+        cache_valid_time: 3600   # Кэш действителен 1 час (3600 секунд)
+      when: "'UFW_NOT_INSTALLED' in ufw_check.stdout"  # Только если UFW не установлен
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.1
+
+    # ЗАДАЧА 3: Устанавливаем ufw (только если не установлен)
+    - name: "Install ufw package"
+      ansible.builtin.apt:
+        name: ufw           # Название пакета для установки
+        state: present      # Убедиться что пакет установлен
+        update_cache: yes   # Обновить кэш перед установкой
+      when: "'UFW_NOT_INSTALLED' in ufw_check.stdout"
+      register: ufw_install
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.1
+
+
+    # ЗАДАЧА 4: Проверяем конечную конфигурацию
+    - name: "Verify ufw installation"
+      ansible.builtin.shell: |
+        # Проверяем что ufw установлен и доступен
+        if command -v ufw >/dev/null 2>&1; then
+          echo "UFW_AVAILABLE"  # UFW доступен в системе
+        else
+          echo "UFW_NOT_AVAILABLE"  # UFW недоступен - ошибка
+          exit 1  # Завершаемся с ошибкой
+        fi
+      register: ufw_verify
+      changed_when: false
+      failed_when: "'UFW_AVAILABLE' not in ufw_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section4
+        - 4.2.1
