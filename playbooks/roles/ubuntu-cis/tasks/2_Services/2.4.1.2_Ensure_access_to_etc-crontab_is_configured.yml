@@ -1,0 +1,126 @@
+---
+- name: "2.4.1.2 | L1 | Ensure permissions on /etc/crontab are configured"
+  hosts: ubuntu
+  become: yes
+  tasks:
+
+    # ЗАДАЧА 1: Проверяем текущие права доступа файла /etc/crontab
+    - name: "Check current permissions of /etc/crontab"
+      ansible.builtin.stat:
+        path: /etc/crontab # Проверяем файл
+      register: crontab_perms # Сохраняем информацию о файле в переменную
+      tags: 
+        - all
+        - cis-ubuntu
+        - section2
+        - 2.4.1.2
+
+    # ЗАДАЧА 2: Проверяем владельца файла (должен быть root:root)
+    - name: "Verify file owner and group"
+      ansible.builtin.shell: |
+        owner_ok="NO"
+        group_ok="NO"
+        
+        # Проверяем что владелец файла - root
+        if [ "$(stat -c %U /etc/crontab)" = "root" ]; then
+          owner_ok="YES"
+        fi
+        
+        # Проверяем что группа файла - root  
+        if [ "$(stat -c %G /etc/crontab)" = "root" ]; then
+          group_ok="YES"
+        fi
+        
+        # Формируем результат проверки
+        if [ "$owner_ok" = "YES" ] && [ "$group_ok" = "YES" ]; then
+          echo "OWNER_CORRECT"  # Владелец и группа правильные
+        else
+          # Показываем текущие значения если неправильные
+          echo "OWNER_WRONG:user=$(stat -c %U /etc/crontab),group=$(stat -c %G /etc/crontab)"
+        fi
+      register: owner_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section2
+        - 2.4.1.2
+
+    # ЗАДАЧА 3: Проверяем права доступа (должны быть 600)
+    - name: "Verify file permissions"
+      ansible.builtin.shell: |
+        # Получаем текущие права доступа в числовом формате
+        current_perms=$(stat -c %a /etc/crontab)
+        if [ "$current_perms" = "600" ]; then
+          echo "PERMS_CORRECT"  # Права доступа правильные
+        else
+          # Показываем текущие права если неправильные
+          echo "PERMS_WRONG:$current_perms"
+        fi
+      register: perms_check
+      changed_when: false
+      failed_when: false
+      tags: 
+        - all
+        - cis-ubuntu
+        - section2
+        - 2.4.1.2
+
+    # ЗАДАЧА 4: Устанавливаем правильного владельца (только если нужно)
+    - name: "Set correct owner and group for /etc/crontab"
+      ansible.builtin.file:
+        path: /etc/crontab
+        owner: root   # Устанавливаем владельца root
+        group: root   # Устанавливаем группу root
+        state: file   # Убедиться что это файл (не директория)
+      when: "'OWNER_WRONG' in owner_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section2
+        - 2.4.1.2
+
+    # ЗАДАЧА 5: Устанавливаем правильные права доступа (только если нужно)
+    - name: "Set correct permissions for /etc/crontab"
+      ansible.builtin.file:
+        path: /etc/crontab
+        mode: '0600'  # Устанавливаем права 600 (только root может читать/писать)
+        state: file
+      when: "'PERMS_WRONG' in perms_check.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section2
+        - 2.4.1.2
+
+    # ЗАДАЧА 6: Проверяем конечную конфигурацию
+    - name: "Verify final crontab configuration"
+      ansible.builtin.shell: |
+        owner_ok="NO"
+        group_ok="NO"
+        perms_ok="NO"
+        
+        # Проверяем владельца (должен быть root:root)
+        if [ "$(stat -c %U /etc/crontab)" = "root" ] && [ "$(stat -c %G /etc/crontab)" = "root" ]; then
+          owner_ok="YES"
+        fi        
+        # Проверяем права доступа (должны быть 600)
+        if [ "$(stat -c %a /etc/crontab)" = "600" ]; then
+          perms_ok="YES"
+        fi  
+        # Формируем итоговый результат
+        if [ "$owner_ok" = "YES" ] && [ "$perms_ok" = "YES" ]; then
+          echo "PERFECT"
+        else
+          echo "ERROR: owner=$owner_ok, permissions=$perms_ok"
+          exit 1
+        fi
+      register: crontab_verify
+      changed_when: false
+      failed_when: "'PERFECT' not in crontab_verify.stdout"
+      tags: 
+        - all
+        - cis-ubuntu
+        - section2
+        - 2.4.1.2
