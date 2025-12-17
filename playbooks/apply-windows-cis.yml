@@ -1,0 +1,73 @@
+---
+# Windows CIS Benchmarks Application Playbook
+# Section 4: Administrative Templates
+- import_playbook: "roles/windows-cis/tasks/4_Administrative_Templates/4.11.6.3_Ensure_Turn_off_autoplay_enabled.yml"
+  tags: ['cis-windows', 'section4', '4.11.6.3', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/4_Administrative_Templates/4.11.7.2.9_Ensure_Require_additional_authentication_at_startup.yml"
+  tags: ['cis-windows', 'section4', '4.11.7.2.9', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/4_Administrative_Templates/4.11.27.1_Ensure_block_Microsoft_accounts.yml"
+  tags: ['cis-windows', 'section4', '4.11.27.1', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/4_Administrative_Templates/4.11.28.3.2_Ensure_Join_Microsoft_MAPS_disabled.yml"
+  tags: ['cis-windows', 'section4', '4.11.28.3.2', 'all']
+
+# Section 22: Microsoft Defender
+- import_playbook: "roles/windows-cis/tasks/22_Defender/22.3_Ensure_Allow_full_scan_of_removable_drives_enabled.yml"
+  tags: ['cis-windows', 'section22', '22.3', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/22_Defender/22.26_Ensure_Enable_network_protection.yml"
+  tags: ['cis-windows', 'section22', '22.26', 'all']
+
+# Section 26: Device Lock
+- import_playbook: "roles/windows-cis/tasks/26_Device_Lock/26.4_Ensure_maximum_password_age_365_days.yml"
+  tags: ['cis-windows', 'section26', '26.4', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/26_Device_Lock/26.5_Ensure_password_history_is_set_to_24_or_more.yml"
+  tags: ['cis-windows', 'section26', '26.5', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/26_Device_Lock/26.6_Ensure_max_device_password_failed_attempts_5_or_fewer.yml"
+  tags: ['cis-windows', 'section26', '26.6', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/26_Device_Lock/26.7_Ensure_screen_lock_timeout_15_minutes_or_less.yml"
+  tags: ['cis-windows', 'section26', '26.7', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/26_Device_Lock/26.8_Ensure_minimum_password_length_14_or_more_character.yml"
+  tags: ['cis-windows', 'section26', '26.8', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/26_Device_Lock/26.9_Ensure_minimum_password_age_1_or_more_days.yml"
+  tags: ['cis-windows', 'section26', '26.9', 'all']
+
+# Section 38: Firewall
+- import_playbook: "roles/windows-cis/tasks/38_Firewall/38.1_Ensure_enable_domain_network_firewall_true.yml"
+  tags: ['cis-windows', 'section38', '38.1', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/38_Firewall/38.4_Ensure_enable_private_network_firewall_true.yml"
+  tags: ['cis-windows', 'section38', '38.4', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/38_Firewall/38.7_Ensure_enable_public_network_firewall_true.yml"
+  tags: ['cis-windows', 'section38', '38.7', 'all']
+
+# Section 49: Local Policies Security Options
+- import_playbook: "roles/windows-cis/tasks/49_Local_Policies_Security_Options/49.6_Ensure_interactive_logon_do_not_display_last_user_name.yml"
+  tags: ['cis-windows', 'section49', '49.6', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/49_Local_Policies_Security_Options/49.9_Ensure_interactive_logon_message_text_for_users_attempting_to_log_on.yml"
+  tags: ['cis-windows', 'section49', '49.9', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/49_Local_Policies_Security_Options/49.17_Ensure_Network_access_Do_not_allow_anonymous_enumeration_of_SAM_accounts.yml"
+  tags: ['cis-windows', 'section49', '49.17', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/49_Local_Policies_Security_Options/49.23_Ensure_Network_security_Do_not_store_LAN_Manager_hash_value_on_next_password_change.yml"
+  tags: ['cis-windows', 'section49', '49.23', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/49_Local_Policies_Security_Options/49.28_Ensure_UAC_admin_prompt_behavior_secure_desktop.yml"
+  tags: ['cis-windows', 'section49', '49.28', 'all']
+
+- import_playbook: "roles/windows-cis/tasks/49_Local_Policies_Security_Options/49.30_Ensure_UAC_detect_application_installations_enabled.yml"
+  tags: ['cis-windows', 'section49', '49.30', 'all']
+
+# Section 103: Windows Update for Business
+- import_playbook: "roles/windows-cis/tasks/103_Windows_Update_For_Business/103.1_Ensure_Configure_Automatic_Updates_enabled.yml"
+  tags: ['cis-windows', 'section103', '103.1', 'all']

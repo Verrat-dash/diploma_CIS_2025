@@ -1,0 +1,68 @@
+---
+# Section 1: Initial Setup
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.1.1.2_Ensure_freevxfs_kernel_module_is_not_available.yml"
+  tags: ['cis-ubuntu', 'section1', '1.1.1.2', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.1.1.9_Ensure_usb-storage_kernel_module_is_not_available.yml"
+  tags: ['cis-ubuntu', 'section1', '1.1.1.9', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.2.2.1_Ensure_updates_patches_and_additional_security_software_are_installed.yml"
+  tags: ['cis-ubuntu', 'section1', '1.2.2.1', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.5.5_Ensure_Automatic_Error_Reporting_is_not_enabled.yml"
+  tags: ['cis-ubuntu', 'section1', '1.5.5', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.7.2_Ensure_GDM_login_banner_is_configured.yml"
+  tags: ['cis-ubuntu', 'section1', '1.7.2', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.7.3_Ensure_GDM_disable-user-list_option_is_enabled.yml"
+  tags: ['cis-ubuntu', 'section1', '1.7.3', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/1_Initial_Setup/1.7.4_Ensure_GDM_screen_locks_when_the_user_is_idle.yml"
+  tags: ['cis-ubuntu', 'section1', '1.7.4', 'all']
+
+# Section 2: Services
+- import_playbook: "roles/ubuntu-cis/tasks/2_Services/2.4.1.2_Ensure_access_to_etc-crontab_is_configured.yml"
+  tags: ['cis-ubuntu', 'section2', '2.4.1.2', 'all']
+
+# Section 4: Firewall
+- import_playbook: "roles/ubuntu-cis/tasks/4_Host_Based_Firewall/4.2.1_Ensure_ufw_is_installed.yml"
+  tags: ['cis-ubuntu', 'section4', '4.2.1', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/4_Host_Based_Firewall/4.2.4_Ensure_ufw_service_is_enabled.yml"
+  tags: ['cis-ubuntu', 'section4', '4.2.4', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/4_Host_Based_Firewall/4.2.8_Ensure_ufw_default_deny_firewall_policy.yml"
+  tags: ['cis-ubuntu', 'section4', '4.2.8', 'all']
+
+# Section 5: Access Control
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.1.16_Ensure_sshd_MaxAuthTries_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.1.16', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.1.20_Ensure_sshd_PermitRootLogin_is_disabled.yml"
+  tags: ['cis-ubuntu', 'section5', '5.1.20', 'all']
+
+#- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.2.4_Ensure_users_must_provide_password_for_privilege_escalation.yml"
+#  tags: ['cis-ubuntu', 'section5', '5.2.4', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.3.3.1.1_Ensure_password_failed_attempts_lockout_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.3.3.1.1', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.3.3.1.2_Ensure_password_unlock_time_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.3.3.1.2', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.3.3.2.2_Ensure_minimum_password_length_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.3.3.2.2', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.3.3.3.1_Ensure_password_history_remember_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.3.3.3.1', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.4.1.1_Ensure_password_expiration_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.4.1.1', 'all']
+
+- import_playbook: "roles/ubuntu-cis/tasks/5_Access_Control/5.4.1.2_Ensure_minimum_password_days_is_configured.yml"
+  tags: ['cis-ubuntu', 'section5', '5.4.1.2', 'all']
+
+# Section 7: System Maintenance
+- import_playbook: "roles/ubuntu-cis/tasks/7_System_Maintenance/7.1.6_Ensure_access_to_etc-shadow_is_configured.yml"
+  tags: ['cis-ubuntu', 'section7', '7.1.6', 'all']
