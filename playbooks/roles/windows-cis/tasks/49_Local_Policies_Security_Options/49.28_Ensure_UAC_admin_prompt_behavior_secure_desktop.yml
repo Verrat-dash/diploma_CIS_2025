@@ -1,0 +1,48 @@
+---
+- name: "49.28 | L1 | Ensure 'User Account Control: Behavior of the elevation prompt for administrators in Admin Approval Mode' is set to 'Prompt for consent on the secure desktop'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    uac_admin_prompt_behavior: 3  # CIS требование: 3 = Запрашивать согласие на защищенном рабочем столе
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение в реестре
+    - name: "CHECK | Check current UAC admin prompt behavior setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: ConsentPromptBehaviorAdmin
+      register: registry_check
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.28"
+
+    # ЗАДАЧА 2: Применяем настройку через реестр
+    - name: "REMEDIATION | Configure UAC admin prompt behavior to prompt for consent on secure desktop"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: ConsentPromptBehaviorAdmin
+        data: "{{ uac_admin_prompt_behavior }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: настройка не существует ИЛИ значение не равно 3
+      when: registry_check.exists == false or (registry_check.exists == true and registry_check.value != uac_admin_prompt_behavior)
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.28"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify UAC admin prompt behavior policy"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: ConsentPromptBehaviorAdmin
+      register: verify_result
+      changed_when: false
+      failed_when: verify_result.exists == false or (verify_result.exists == true and verify_result.value != uac_admin_prompt_behavior)
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.28"

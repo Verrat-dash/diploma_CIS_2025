@@ -1,0 +1,51 @@
+---
+- name: "22.3 | L1 | Ensure 'Allow full scan of removable drives' is set to 'Enabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    removable_scan_state: 0  # 0 = Enabled, 1 = Disabled
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра сканирования съемных дисков
+    - name: "CHECK | Check current removable drive scanning setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Scan
+        name: DisableRemovableDriveScanning
+      register: removable_scan_check
+      tags:
+        - all
+        - cis-windows
+        - section22
+        - "22.3"
+
+    # ЗАДАЧА 2: Включаем сканирование съемных дисков если нужно
+    - name: "REMEDIATION | Enable removable drive scanning"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Scan
+        name: DisableRemovableDriveScanning
+        data: "{{ removable_scan_state }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 0
+      when: >
+        removable_scan_check.value is not defined or
+        removable_scan_check.value != removable_scan_state
+      tags:
+        - all
+        - cis-windows
+        - section22
+        - "22.3"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify removable drive scanning setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Scan
+        name: DisableRemovableDriveScanning
+      register: verify_removable_scan_result
+      failed_when: >
+        verify_removable_scan_result.value is not defined or
+        verify_removable_scan_result.value != removable_scan_state
+      tags:
+        - all
+        - cis-windows
+        - section22
+        - "22.3"

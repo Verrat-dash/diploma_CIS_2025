@@ -1,0 +1,48 @@
+---
+- name: "49.30 | L1 | Ensure 'User Account Control: Detect application installations and prompt for elevation' is set to 'Enabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    uac_installer_detection: 1  # CIS требование: 1 = Включено
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение в реестре
+    - name: "CHECK | Check current UAC application installations detection setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: EnableInstallerDetection
+      register: registry_check
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.30"
+
+    # ЗАДАЧА 2: Применяем настройку через реестр
+    - name: "REMEDIATION | Enable UAC application installations detection"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: EnableInstallerDetection
+        data: "{{ uac_installer_detection }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: настройка не существует ИЛИ значение не равно 1
+      when: registry_check.exists == false or (registry_check.exists == true and registry_check.value != uac_installer_detection)
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.30"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify UAC application installations detection policy"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: EnableInstallerDetection
+      register: verify_result
+      changed_when: false
+      failed_when: verify_result.exists == false or (verify_result.exists == true and verify_result.value != uac_installer_detection)
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.30"

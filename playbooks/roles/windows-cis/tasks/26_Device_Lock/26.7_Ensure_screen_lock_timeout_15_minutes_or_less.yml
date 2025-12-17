@@ -1,0 +1,48 @@
+---
+- name: "26.7 | L1 | Ensure 'Screen lock timeout' is set to '15 or fewer minute(s), but not 0'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    screen_lock_timeout: 900  # 15 минут в секундах (15 × 60 = 900)
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение в реестре
+    - name: "CHECK | Check current screen lock timeout setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: InactivityTimeoutSecs
+      register: registry_check
+      tags:
+        - all
+        - cis-windows
+        - section26
+        - "26.7"
+
+    # ЗАДАЧА 2: Применяем настройку через реестр
+    - name: "REMEDIATION | Configure screen lock timeout to 15 minutes or less"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: InactivityTimeoutSecs
+        data: "{{ screen_lock_timeout }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: настройка не существует ИЛИ значение не равно 900 секундам
+      when: registry_check.exists == false or (registry_check.exists == true and registry_check.value != screen_lock_timeout)
+      tags:
+        - all
+        - cis-windows
+        - section26
+        - "26.7"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify screen lock timeout policy"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: InactivityTimeoutSecs
+      register: verify_result
+      changed_when: false
+      failed_when: verify_result.exists == false or (verify_result.exists == true and verify_result.value != screen_lock_timeout)
+      tags:
+        - all
+        - cis-windows
+        - section26
+        - "26.7"

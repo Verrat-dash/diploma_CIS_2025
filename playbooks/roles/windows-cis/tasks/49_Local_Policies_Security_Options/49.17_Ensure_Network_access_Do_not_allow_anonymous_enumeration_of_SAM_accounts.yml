@@ -1,0 +1,51 @@
+---
+- name: "49.17 | L1 | Ensure 'Network access: Do not allow anonymous enumeration of SAM accounts' is set to 'Enabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    sam_anonymous_enumeration: 1  # 1 = Enabled, 0 = Disabled
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра реестра
+    - name: "CHECK | Check current SAM anonymous enumeration setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+        name: RestrictAnonymousSAM
+      register: sam_reg_check
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.17"
+
+    # ЗАДАЧА 2: Устанавливаем параметр реестра если нужно
+    - name: "REMEDIATION | Set SAM anonymous enumeration restriction"
+      ansible.windows.win_regedit:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+        name: RestrictAnonymousSAM
+        data: "{{ sam_anonymous_enumeration }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 1
+      when: >
+        sam_reg_check.value is not defined or
+        sam_reg_check.value != sam_anonymous_enumeration
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.17"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify SAM anonymous enumeration setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa
+        name: RestrictAnonymousSAM
+      register: verify_sam_result
+      failed_when: >
+        verify_sam_result.value is not defined or
+        verify_sam_result.value != sam_anonymous_enumeration
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.17"

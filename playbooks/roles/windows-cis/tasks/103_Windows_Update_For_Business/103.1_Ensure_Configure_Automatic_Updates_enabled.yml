@@ -1,0 +1,99 @@
+---
+- name: "103.1 | L1 | Ensure 'Configure Automatic Updates' is set to 'Enabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    auto_update_state: 4  # 4 = Auto download and schedule install
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра автоматических обновлений
+    - name: "CHECK | Check current automatic updates setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+        name: NoAutoUpdate # Имя параметра: NoAutoUpdate (0=включено, 1=выключено)
+      register: auto_update_check
+      tags:
+        - all
+        - cis-windows
+        - section103
+        - "103.1"
+
+    # ЗАДАЧА 2: Включаем автоматические обновления если нужно
+    - name: "REMEDIATION | Enable automatic updates"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+        name: NoAutoUpdate
+        data: 0 # Значение 0 = включить автоматические обновления
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр существует И значение не равно 0
+      when: >
+        auto_update_check.value is defined and
+        auto_update_check.value != 0
+      tags:
+        - all
+        - cis-windows
+        - section103
+        - "103.1"
+
+    # ЗАДАЧА 3: Проверяем текущий режим автоматических обновлений
+    - name: "CHECK | Check current automatic updates mode"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+        name: AUOptions # Параметр определяющий режим автоматических обновлений
+      register: au_options_check
+      changed_when: false
+      # Указываем что эта задача никогда не меняет состояние системы (только проверка)
+      tags:
+        - all
+        - cis-windows
+        - section103
+        - "103.1"
+
+    # ЗАДАЧА 4: Устанавливаем режим автоматической установки обновлений
+    - name: "REMEDIATION | Set automatic updates to auto install"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+        name: AUOptions 
+        data: "{{ auto_update_state }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 4
+      when: >
+        au_options_check.value is not defined or
+        au_options_check.value != auto_update_state
+      tags:
+        - all
+        - cis-windows
+        - section103
+        - "103.1"
+
+    # ЗАДАЧА 5: Проверяем что автоматические обновления включены
+    - name: "VERIFY | Verify automatic updates are enabled"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+        name: NoAutoUpdate
+      register: verify_no_auto_update
+      changed_when: false
+      failed_when: >
+        verify_no_auto_update.value is defined and
+        verify_no_auto_update.value != 0
+      tags:
+        - all
+        - cis-windows
+        - section103
+        - "103.1"        
+
+    # ЗАДАЧА 6: Проверяем что режим обновлений установлен правильно
+    - name: "VERIFY | Verify automatic updates mode"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+        name: AUOptions
+      register: verify_au_options
+      changed_when: false
+      failed_when: >
+        verify_au_options.value is not defined or
+        verify_au_options.value != auto_update_state
+      tags:
+        - all
+        - cis-windows
+        - section103
+        - "103.1"

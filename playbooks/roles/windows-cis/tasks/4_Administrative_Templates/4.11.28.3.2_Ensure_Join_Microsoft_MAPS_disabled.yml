@@ -1,0 +1,51 @@
+---
+- name: "4.11.28.3.2 | L2 | Ensure 'Join Microsoft MAPS' is set to 'Disabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    maps_join_state: 0  # 0 = Disabled, 1 = Basic, 2 = Advanced
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра присоединения к MAPS
+    - name: "CHECK | Check current Microsoft MAPS joining setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet
+        name: SpyNetReporting
+      register: maps_join_check
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.28.3.2"
+
+    # ЗАДАЧА 2: Отключаем присоединение к MAPS если нужно
+    - name: "REMEDIATION | Disable Microsoft MAPS joining"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet
+        name: SpyNetReporting
+        data: "{{ maps_join_state }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 0
+      when: >
+        maps_join_check.value is not defined or
+        maps_join_check.value != maps_join_state
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.28.3.2"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify Microsoft MAPS joining setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet
+        name: SpyNetReporting
+      register: verify_maps_join_result
+      failed_when: >
+        verify_maps_join_result.value is not defined or
+        verify_maps_join_result.value != maps_join_state
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.28.3.2"

@@ -1,0 +1,57 @@
+---
+- name: "38.4 | L1 | Ensure 'Enable Private Network Firewall' is set to 'True'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    firewall_private_state: "on"  # on или off
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее состояние частного профиля
+    - name: "CHECK | Check current private network firewall state"
+      ansible.windows.win_shell: |
+        # Получаем состояние брандмауэра для частного профиля
+        $private_state = netsh advfirewall show privateprofile state | Where-Object { $_ -match "State" }
+        Write-Output $private_state
+      register: firewall_private_check
+      changed_when: false
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.4"
+
+    # ЗАДАЧА 2: Устанавливаем состояние брандмауэра если нужно
+    - name: "REMEDIATION | Set private network firewall state to {{ firewall_private_state }}"
+      ansible.windows.win_shell: |
+        # Устанавливаем состояние частного профиля брандмауэра в значение из переменной
+        netsh advfirewall set privateprofile state {{ firewall_private_state }}
+        Write-Output "Set private network firewall to: {{ firewall_private_state }}"
+      # ВЫПОЛНЯТЬ ЕСЛИ: текущее состояние брандмауэра не соответствует ожидаемому значению
+      when: (firewall_private_state | upper) not in firewall_private_check.stdout
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.4"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify private network firewall state"
+      ansible.windows.win_shell: |
+        $result = netsh advfirewall show privateprofile state
+        
+        # Ищем ожидаемое состояние (ON или OFF)
+        if ($result -match "State.*{{ firewall_private_state | upper }}") {
+          Write-Output "COMPLIANT: Private network firewall is set to {{ firewall_private_state | upper }}"
+          exit 0
+        } else {
+          Write-Output "NON-COMPLIANT: Private network firewall is not set to {{ firewall_private_state | upper }}"
+          exit 1
+        }
+      register: verify_private_result
+      changed_when: false
+      failed_when: verify_private_result.rc != 0
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.4"

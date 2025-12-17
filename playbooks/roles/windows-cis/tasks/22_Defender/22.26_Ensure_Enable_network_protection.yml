@@ -1,0 +1,51 @@
+---
+- name: "22.26 | L1 | Ensure 'Enable Network Protection' is set to 'Enabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    network_protection_state: 1  # 1 = Enabled (Block mode), 0 = Disabled
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра сетевой защиты
+    - name: "CHECK | Check current network protection setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection
+        name: EnableNetworkProtection
+      register: network_protection_check
+      tags:
+        - all
+        - cis-windows
+        - section22
+        - "22.26"
+
+    # ЗАДАЧА 2: Устанавливаем параметр сетевой защиты если нужно
+    - name: "REMEDIATION | Enable network protection in block mode"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection
+        name: EnableNetworkProtection
+        data: "{{ network_protection_state }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 1
+      when: >
+        network_protection_check.value is not defined or
+        network_protection_check.value != network_protection_state
+      tags:
+        - all
+        - cis-windows
+        - section22
+        - "22.26"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify network protection setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection
+        name: EnableNetworkProtection
+      register: verify_network_protection_result
+      failed_when: >
+        verify_network_protection_result.value is not defined or
+        verify_network_protection_result.value != network_protection_state
+      tags:
+        - all
+        - cis-windows
+        - section22
+        - "22.26"

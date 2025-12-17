@@ -1,0 +1,51 @@
+---
+- name: "4.11.7.2.9 | L1 | Ensure 'Require additional authentication at startup' is set to 'Enabled'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    bitlocker_auth_state: 1  # 1 = Enabled, 0 = Disabled
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра дополнительной аутентификации BitLocker
+    - name: "CHECK | Check current BitLocker additional authentication setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\FVE
+        name: UseAdvancedStartup
+      register: bitlocker_auth_check
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.7.2.9"
+
+    # ЗАДАЧА 2: Устанавливаем параметр аутентификации BitLocker если нужно
+    - name: "REMEDIATION | Enable BitLocker additional authentication at startup"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\FVE
+        name: UseAdvancedStartup
+        data: "{{ bitlocker_auth_state }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 1
+      when: >
+        bitlocker_auth_check.value is not defined or
+        bitlocker_auth_check.value != bitlocker_auth_state
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.7.2.9"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify BitLocker additional authentication setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\FVE
+        name: UseAdvancedStartup
+      register: verify_bitlocker_auth_result
+      failed_when: >
+        verify_bitlocker_auth_result.value is not defined or
+        verify_bitlocker_auth_result.value != bitlocker_auth_state
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.7.2.9"

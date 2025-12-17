@@ -1,0 +1,57 @@
+---
+- name: "38.7 | L1 | Ensure 'Enable Public Network Firewall' is set to 'True'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    firewall_public_state: "on"  # on или off
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее состояние общедоступного профиля
+    - name: "CHECK | Check current public network firewall state"
+      ansible.windows.win_shell: |
+        # Получаем состояние брандмауэра для общедоступного профиля
+        $public_state = netsh advfirewall show publicprofile state | Where-Object { $_ -match "State" }
+        Write-Output $public_state
+      register: firewall_public_check
+      changed_when: false
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.7"
+
+    # ЗАДАЧА 2: Устанавливаем состояние брандмауэра если нужно
+    - name: "REMEDIATION | Set public network firewall state to {{ firewall_public_state }}"
+      ansible.windows.win_shell: |
+        # Устанавливаем состояние общедоступного профиля брандмауэра в значение из переменной
+        netsh advfirewall set publicprofile state {{ firewall_public_state }}
+        Write-Output "Set public network firewall to: {{ firewall_public_state }}"
+      # ВЫПОЛНЯТЬ ЕСЛИ: текущее состояние брандмауэра не соответствует ожидаемому значению
+      when: (firewall_public_state | upper) not in firewall_public_check.stdout
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.7"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify public network firewall state"
+      ansible.windows.win_shell: |
+        $result = netsh advfirewall show publicprofile state
+        
+        # Ищем ожидаемое состояние (ON или OFF)
+        if ($result -match "State.*{{ firewall_public_state | upper }}") {
+          Write-Output "COMPLIANT: Public network firewall is set to {{ firewall_public_state | upper }}"
+          exit 0
+        } else {
+          Write-Output "NON-COMPLIANT: Public network firewall is not set to {{ firewall_public_state | upper }}"
+          exit 1
+        }
+      register: verify_public_result
+      changed_when: false
+      failed_when: verify_public_result.rc != 0
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.7"

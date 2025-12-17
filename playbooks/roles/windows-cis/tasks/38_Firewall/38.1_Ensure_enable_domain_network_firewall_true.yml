@@ -1,0 +1,58 @@
+---
+- name: "38.1 | L1 | Ensure 'Enable Domain Network Firewall' is set to 'True'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    firewall_domain_state: "on"  # on или off
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее состояние доменного профиля
+    - name: "CHECK | Check current domain network firewall state"
+      ansible.windows.win_shell: |
+        # Используем модуль для выполнения PowerShell команд на Windows хостах
+        $domain_state = netsh advfirewall show domainprofile state | Where-Object { $_ -match "State" }
+        # Выполняем команду netsh для показа состояния доменного профиля брандмауэра и фильтруем вывод через Where-Object чтобы найти строку содержащую "State"
+        Write-Output $domain_state
+      register: firewall_check
+      changed_when: false
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.1"
+
+    # ЗАДАЧА 2: Устанавливаем состояние брандмауэра если нужно
+    - name: "REMEDIATION | Set domain network firewall state to {{ firewall_domain_state }}"
+      ansible.windows.win_shell: |
+        netsh advfirewall set domainprofile state {{ firewall_domain_state }}
+        # Устанавливаем состояние доменного профиля брандмауэра в значение из переменной
+        Write-Output "Set domain network firewall to: {{ firewall_domain_state }}"
+      # ВЫПОЛНЯТЬ ЕСЛИ: текущее состояние брандмауэра не соответствует ожидаемому значению
+      when: (firewall_domain_state | upper) not in firewall_check.stdout
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.1"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify domain network firewall state"
+      ansible.windows.win_shell: |
+        $result = netsh advfirewall show domainprofile state
+        
+        # Ищем ожидаемое состояние (ON или OFF)
+        if ($result -match "State.*{{ firewall_domain_state | upper }}") {
+          Write-Output "COMPLIANT: Domain network firewall is set to {{ firewall_domain_state | upper }}"
+          exit 0
+        } else {
+          Write-Output "NON-COMPLIANT: Domain network firewall is not set to {{ firewall_domain_state | upper }}"
+          exit 1
+        }
+      register: verify_result
+      changed_when: false
+      failed_when: verify_result.rc != 0
+      tags:
+        - all
+        - cis-windows
+        - section38
+        - "38.1"

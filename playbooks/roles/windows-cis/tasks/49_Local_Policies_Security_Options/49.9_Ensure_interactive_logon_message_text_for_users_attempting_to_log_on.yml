@@ -1,0 +1,98 @@
+---
+- name: "49.9 | L1 | Configure 'Interactive logon: Message text for users attempting to log on'"
+  hosts: windows
+  gather_facts: yes
+
+  vars:
+    # Желаемые значения для текста уведомления
+    legal_notice_caption: "Предупреждение"
+    legal_notice_text: "Несанкционированный доступ запрещён"
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущий заголовок уведомления
+    - name: "CHECK | Check current LegalNoticeCaption setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: LegalNoticeCaption  # Имя проверяемого параметра реестра - заголовок уведомления
+      register: caption_check
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.9"
+
+    # ЗАДАЧА 2: Проверяем текущий текст уведомления
+    - name: "CHECK | Check current LegalNoticeText setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: LegalNoticeText  # Имя проверяемого параметра реестра - текст уведомления
+      register: text_check
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.9"
+
+    # ЗАДАЧА 3: Устанавливаем заголовок уведомления (если нужно)
+    - name: "REMEDIATION | Set LegalNoticeCaption"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: LegalNoticeCaption
+        data: "{{ legal_notice_caption }}" # Установка значения из переменной legal_notice_caption
+        type: string
+      # Выполнять если: параметра нет ИЛИ значение не совпадает
+      when: >
+        caption_check.exists == false or 
+        (caption_check.exists == true and caption_check.value != legal_notice_caption)
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.9"
+
+    # ЗАДАЧА 4: Устанавливаем текст уведомления (если нужно)
+    - name: "REMEDIATION | Set LegalNoticeText"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: LegalNoticeText
+        data: "{{ legal_notice_text }}"
+        type: string
+      # Выполнять если: параметра нет ИЛИ значение не совпадает
+      when: >
+        text_check.exists == false or 
+        (text_check.exists == true and text_check.value != legal_notice_text)
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.9"
+
+    # ЗАДАЧА 5: Проверяем результат для заголовка
+    - name: "VERIFY | Verify LegalNoticeCaption is set correctly"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: LegalNoticeCaption
+      register: verify_caption
+      changed_when: false
+      # Провал если значение не совпадает
+      failed_when: verify_caption.value != legal_notice_caption
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.9"
+
+    # ЗАДАЧА 6: Проверяем результат для текста
+    - name: "VERIFY | Verify LegalNoticeText is set correctly"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: LegalNoticeText
+      register: verify_text
+      changed_when: false
+      # Провал если значение не совпадает
+      failed_when: verify_text.value != legal_notice_text
+      tags:
+        - all
+        - cis-windows
+        - section49
+        - "49.9"

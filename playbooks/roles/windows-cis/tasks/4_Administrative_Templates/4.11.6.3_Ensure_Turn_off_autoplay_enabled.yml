@@ -1,0 +1,52 @@
+---
+- name: "4.11.6.3 | L1 | Ensure 'Turn off Autoplay' is set to 'Enabled: All drives'"
+  hosts: windows
+  gather_facts: yes
+  vars:
+    autoplay_disable_value: 255  # 255 = Disable autoplay for all drives
+
+  tasks:
+    # ЗАДАЧА 1: Проверяем текущее значение параметра автозапуска
+    - name: "CHECK | Check current autoplay setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer
+        name: NoDriveTypeAutoRun
+      register: autoplay_check
+      changed_when: false
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.6.3"
+
+    # ЗАДАЧА 2: Отключаем автозапуск для всех дисков если нужно
+    - name: "REMEDIATION | Disable autoplay for all drives"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer
+        name: NoDriveTypeAutoRun
+        data: "{{ autoplay_disable_value }}"
+        type: dword
+      # ВЫПОЛНЯТЬ ЕСЛИ: параметр не существует ИЛИ значение не равно 255
+      when: >
+        autoplay_check.value is not defined or
+        autoplay_check.value != autoplay_disable_value
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.6.3"
+
+    # ЗАДАЧА 3: Проверяем результат
+    - name: "VERIFY | Verify autoplay setting"
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer
+        name: NoDriveTypeAutoRun
+      register: verify_autoplay_result
+      failed_when: >
+        verify_autoplay_result.value is not defined or
+        verify_autoplay_result.value != autoplay_disable_value
+      tags:
+        - all
+        - cis-windows
+        - section4
+        - "4.11.6.3"
