@@ -4,11 +4,19 @@
   become: yes
   tasks:
 
-    # ЗАДАЧА 0: ГАРАНТИРУЕМ что SSH порт 22 открыт (для доступа Ansible)
+    # ЗАДАЧА 0: ГАРАНТИРУЕМ что SSH порт 22 открыт (для доступа Ansible) - ИДЕМПОТЕНТНАЯ версия
     - name: "Ensure SSH port 22 is allowed"
       ansible.builtin.shell: |
-        # Открываем порт SSH чтобы не потерять подключение
-        ufw allow 22/tcp
+        # Проверяем существует ли уже правило для порта 22/tcp
+        if ufw status | grep -q "22/tcp.*ALLOW"; then
+          echo "SSH_RULE_EXISTS"
+        else
+          # Если правила нет - добавляем его
+          ufw allow 22/tcp
+          echo "SSH_RULE_ADDED"
+        fi
+      register: ssh_rule_result
+      changed_when: "'SSH_RULE_ADDED' in ssh_rule_result.stdout"  # Только если добавили правило
       tags: 
         - all
         - cis-ubuntu
